@@ -1,0 +1,135 @@
+---
+title: "Regression Models Course Project"
+author: "Steven Zhang"
+date: "21 Nov, 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(gridExtra)
+```
+
+# 1 - Synopsis
+
+This report is about vehicles, aims to explore the relationship between miles per gallon(MPG) and some other variables. Particularly focused on the following questions:
+
+- "Is an automatic or manual transmission better for MPG?"
+
+- "Quantify the MPG difference between automatic and manual transmissions."
+
+The original question description can be found [here](https://www.coursera.org/learn/regression-models/peer/nxntd/regression-models-course-project).
+
+**From my analysis, the manual transmission car has a significant higher mpg than automatic's. In addition, from the generalized additive model, a manual transmission car has a fuel efficiency of 3.47 (MPG) higher than that of automatic transmission car.**
+
+# 2 - Exploratory Analysis 
+
+## 2.1 - Data Source Overview
+
+The source dataset is embedded in R environment, named "mtcars", which was extracted from the 1974 *Motor Trend US* magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973¨C74 models). This dataset has 32 observations on 11 variables as followed. 
+
+-	 mpg - Miles/(US) gallon
+-	 cyl - Number of cylinders
+-	 disp - Displacement (cu.in.)
+-	 hp - Gross horsepower
+-	 drat - Rear axle ratio
+-	 wt - Weight (1000 lbs)
+-	 qsec - 1/4 mile time
+-	 vs - V/S
+-	 am - Transmission (0 = automatic, 1 = manual)
+-	 gear - Number of forward gears
+-	 carb - Number of carburetors
+
+## 2.2 - data loading and preprocessing
+
+We load the data and convert the *am* variable to factor format.  
+
+```{r loading}
+df <- mtcars
+summary(glm(mpg ~ ., data = df))$coefficients[,4]
+```
+
+From a simple analysis, I choose 5 variables for next steps.
+
+```{r preprocessing}
+df <- select(df, c(mpg, am, wt, qsec, hp, disp))
+df$am <- as.factor(df$am)
+```
+
+Here is the correlation of the variables. For the convenience of further analysis, I hold the *Transmission* (auto/manual) as colors.
+
+```{r exploratory1, warning=FALSE}
+my.ggpairs <- function(data, mapping, ...){
+  p <- ggplot(data = data, mapping = mapping, binwidth = 30) + 
+    geom_point() + 
+    geom_smooth(method=loess, fill="red", color="red", ...) +
+    geom_smooth(method=lm, fill="blue", color="blue", ...)
+  p
+}
+ggpairs(df, lower = list(continuous = my.ggpairs), aes(color = am))
+```
+
+From the diagram above, we can see some clear relationships between mpg and other variables. More, we can see a clear difference different transmissions (red & blue). 
+
+# 3 - Analysis
+## 3.1 - Question 1: Is an automatic or manual transmission better for MPG?
+
+Now, we are going to explore the relationship between automatic and manual transmission. 
+
+```{r exploratory2}
+density.plot <- ggplot(df, aes(mpg, color = am)) + geom_density(legend = c("auto","manual"))
+box.plot <- ggplot(df, aes(am, mpg)) + geom_boxplot(col = "skyblue4", legend = c("auto","manual"))
+grid.arrange(density.plot, box.plot, ncol = 2, nrow = 1)
+```
+
+We can see from the plot above that there are obvious correlation between mpg and transmission. However, we should run a hypothesis test to confirm it. 
+
+```{r t.test}
+group.manual <- df[df$am == 1,]
+group.auto <- df[df$am == 0,]
+t.test(group.auto$mpg, group.manual$mpg, paired = FALSE, var.equal = FALSE)
+```
+
+From this T test, we can see the automatic transmission has a significant (p-value < 0.0015) less mpg value than manual's.
+
+## 3.2 - Question 2: Quantify the MPG difference between automatic and manual transmissions
+
+Based on the analysis above, we need to quantify the coefficients. I build three linear regression models with 1, 5 and 9 predictors and use the anova function to compare them.
+
+```{r fit.models}
+fit1 <- lm(mpg ~ am, data = df)
+fit2 <- lm(mpg ~ ., data = df)
+mtcars$am <- as.factor(mtcars$am)
+fit3 <- lm(mpg ~ ., data = mtcars)
+anova(fit1, fit2, fit3)
+```
+
+From this comparance, we choose model 2 to do further test. 
+
+```{r summary.fit}
+summary(fit2)
+```
+
+Based on this generalized additive model, we can say that a manual transmission car has a fuel efficiency of 3.47 (MPG) higher than that of a automatic transmission car. 
+
+# 4 - Appendix
+
+- [1] Henderson and Velleman (1981), Building multiple regression models interactively. *Biometrics*, 37, 391¨C411.
+
+## 4.1 - Additional Plots
+
+Here we list the plots of the regression.
+
+```{r lm.plot}
+par(mfrow = c(2, 2))
+plot(fit2)
+```
+
+## 4.2 - Hardware & Software Environment
+
+```{r env, echo=FALSE}
+sessionInfo()
+```
